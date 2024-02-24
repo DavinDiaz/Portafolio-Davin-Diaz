@@ -1,0 +1,654 @@
+---
+title: "Funcionamiento Diferencial del Reactivo en Pruebas de Alto Impacto"
+date: 01-03-2024 
+author: Davin Díaz
+categories: [R, TRI, DIF, psicometria]
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE)
+```
+
+## Librerias a utilizar
+
+Para los análisis realizados dentro de este trabajo de tesis, se utilizaron una serie de paquetes dentro del lenguaje de programación de R. A continuación se presenta un listado con todos los paquetes y una breve descripción del uso que se hizo de cada uno de ellos:
+
+-   library(psych) library(psy) library(mirt) library(sjPlot) library(difR) library(ltm) library(lme4) library(lordif) library(ShinyItemAnalysis) library(tidyverse) library(gt) library(kableExtra) library(corrplot) library(RColorBrewer) library(eRm) library(ggdist)
+
+## Manejo de los datos
+
+```{r message=FALSE, warning=FALSE}
+library(data.table)
+library(psych)
+library(psy)
+library(mirt)
+library(sjPlot)
+library(difR)
+library(ltm)
+library(lme4)
+library(lordif)
+library(ShinyItemAnalysis)
+library(tidyverse)
+library(gt)
+library(kableExtra)
+library(corrplot)
+library(RColorBrewer)
+library(eRm)
+library(ggdist)
+
+lectura <- read.csv("lectura.csv")
+lectura_dicotomicos <- read.csv("lectura dicotomicos.csv")
+reactivos_lectura <- read.csv("reactivos lectura.csv")
+
+
+
+## Tabla estilo APA
+apa <- function(x, title = " ",...) {
+  gt(x,...) %>%
+    tab_options(
+      table.border.top.color = "white",
+      heading.title.font.size = px(16),
+      column_labels.border.top.width = 3,
+      column_labels.border.top.color = "black",
+      column_labels.border.bottom.width = 3,
+      column_labels.border.bottom.color = "black",
+      table_body.border.bottom.color = "black",
+      table.border.bottom.color = "white",
+      table.width = pct(100),
+      table.background.color = "white"
+    ) %>%
+    cols_align(align="center") %>%
+    tab_style(
+      style = list(
+        cell_borders(
+          sides = c("top", "bottom"),
+          color = "white",
+          weight = px(1)
+        ),
+        cell_text(
+          align="center"
+        ),
+        cell_fill(color = "white", alpha = NULL)
+      ),
+      locations = cells_body(
+        columns = everything(),
+        rows = everything()
+      )
+    ) %>%
+    #title setup
+    tab_header(
+      title = gt::html("<i>", title, "</i>")
+    ) %>%
+    opt_align_table_header(align = "left")
+}
+
+
+```
+
+## Análisis descriptivos para examen de comprensión lectora
+
+### Distribución de puntajes totales
+
+Para explorar de forma descriptiva la distribución de respuestas de los sustentantes dentro de cada una de las áreas de posgrado, se comenzó por mostrar una gráfica de ----, la ventaja de este tipo de gráfica es que permite mostrar la distribución enf roma de campana, y a la vez en forma de gráfico de dispersión, incluyendo dentro del mismo gráfico un diagrama de caja.
+
+Para elaborar este tipo de gráfico a partir del puntaje total de la prueba se siguieron los siguientes pasos:
+
+-   Sumar el puntaje total para cada sustentante
+
+-   Asegurarse de que no hubieran datos faltantes en las variables a utilizar (puntaje total y genero)
+
+-   Generar la gráfica base, definiendo la distribución de las variables en los distintos ejes mediante el paquete ggplot2
+
+-   Añadir la distribución de respuestas en forma de campana
+
+-   Añadir el diagrama de caja
+
+-   Añadir el gráfico de dispersión
+
+-   Especificar los límites a incluir dentro de los ejes
+
+-   Definir el tema del gráfico para personalizarlo
+
+-   Añadir etiquetas al gráfico
+
+-   Personalizar la paleta de colores utilizada
+
+Los pasos recién descritos corresponden uno a uno con las líneas del siguiente bloque de código utilizado para generar el gráfico.
+
+```{r}
+## Figura 1 - Distribución de puntajes por área
+lectura_dicotomicos%>%
+  mutate(Total = rowSums(reactivos_lectura))%>%
+  drop_na(genero)%>%
+  mutate(area = factor(area))%>%
+  ggplot(aes(x = area, y = Total, color = area)) + 
+  ggdist::stat_halfeye(adjust =.8, width = .5, justification = -.5, aes(fill=area)) +
+  geom_boxplot(width = .25, outlier.shape = NA) +
+  geom_point(size = 1.3, alpha = .4, position = position_jitter(seed =1, width = .4))  + 
+  coord_cartesian(xlim = c(1.2, NA)) + 
+  theme_light() +
+  labs(title = "Figura X. Distribución de puntajes en examen de lectura y gramática por área de posgrado", 
+       x = "Área", y = "Puntaje total")+ 
+  scale_fill_manual(values = c("#44BEFE", "#098BD1", "#0D547A", "#092A3C"))+ 
+  scale_color_manual(values = c("#44BEFE", "#098BD1", "#0D547A", "#092A3C"))
+
+```
+
+### Porcentaje de respuestas correctas por reactivo
+
+Una vez observados los resultados a nivel de puntajes totales por área, para visualizar las diferencias a nivel de porcentaje de respuestas correctas por reactivo por área, se llevaron a cabo los siguientes pasos:
+
+-   Definir una función personalizada para calcular porcentajes de respuestas correctas
+
+-   Eliminar valores perdidos
+
+-   Agrupar los datos por área (permite que los análisis posteriores se realice de forma diferenciada para cada área).
+
+-   Calcular el porcentaje de respuestas correctas
+
+-   Modificar la estructura de los resultados para que, en lugar de tener una columna por reactivo, se tuviera una columna con cada reactivo en una fila y una columna con el procentaje de respuestas correctas del reactivo correspondiente en cada fila.
+
+-   Modificar los resultados para que en lugar de presentarse en formato decimal, se presente en porcentajes cerrados
+
+-   Generar la base del gráfico en ggplot2, asignando el nombre de los reactivos al eje de las x, el porcentaje de respuestas correctas al eje de las y el área de posgrado al color de las columnas (generando así 4 columnas para cada reactivo en el mismo gráfico.
+
+-   Definir el gráfico de columnas mediante `geom_col()` ,definiendo que las columnas se distribuyan una junto a la otra en lugar de una encima de la otra.
+
+-   Definir el tema del gráfico para personalizarlo
+
+-   Añadir etiquetas al gráfico
+
+-   Personalizar la paleta de colores utilizada
+
+```{r}
+
+
+# Figura 2 -  Porcentaje de respuestas correctas por área
+
+
+
+reactivos_lectura%>%
+  cbind(lectura$area)%>%
+  mutate(area = factor(`lectura$area`))%>%
+  select(-`lectura$area`)%>%
+  drop_na()%>%
+  group_by(area)%>%
+  summarise(across(everything(), mean))%>%
+  pivot_longer(!area,
+               names_to = "reactivo", values_to = "porcentaje")%>%
+  mutate(porcentaje = round(porcentaje*100,1))%>%
+  ggplot(aes(x = factor(reactivo, levels = names(reactivos_lectura)), y =porcentaje, fill = area)) + geom_col(position = "dodge") +
+  theme_light() +
+  labs(title = "Figura X. Porcentaje de respuestas correctas por reactivo en examen de lectura y gramática por área de posgrado", 
+       x = "Reactivo", y = "Porcentaje de respuestas correctas") + 
+  scale_fill_manual(values = c("#44BEFE", "#098BD1", "#0D547A", "#092A3C"))
+
+
+
+```
+
+## Análisis DIF con distintos métodos
+
+### Método de Mantel-Haenszel
+
+Uno de los métodos más utilizados para detectar DIF tanto por su simplicidad como por su practicidad es el método de Mantel-Haenszel. En R, es posible realizar este análisis mediante la función `difMH()` perteneciente al paquete `difR` de Maguis et al., (2015). Esta función permite la comparación directa entre dos grupos para la detección de DIF. Los principales parámetros que requiere son:
+
+-   La base de datos que se va a analizar, conteniendo únicamente los reactivos a analizar y la variable correspondiente a la definición de los grupos a analizar, cabe destacar que esta variable puede estar en una base de datos distintos siempre y cuando contenga la misma cantidad de filas y ambas bases de datos esten ordenadas de la misma forma, de manera que cada fila de la base de datos conr eactivos corresponda a la misma fila en la base de datos con los grupos.
+
+-   La especificación de la variable con los grupos en el argumento `group`
+
+-   El nombre o identificador del grupo definido como focal dentro del argumento `focal.name`, el nombre introducido en este argumento debe ser el mismo que se encuentra dentro de la variable definida en el argumento anterior. Es decir, si dentro de la variable, el grupo focal aparece como el número `1`, de esa misma manerae debe definirse aquí; en cambio, si en la variable aparece como `"focal"`, entonces se define de esa manera, incluyendo las comillas si se trata de una variable de tipo caracter.
+
+Dados estos requerimientos, es necesario transformar las bases de datos con las que se ha trabajado hasta ahora, para ejemplificar el uso básico de esta función, se presenta a continuación el análisis entre las áreas 1 y 2. Dentro del bloque de código se realizan las siguientes operaciones:
+
+-   Generar una base de datos que solamente incluya los casos de las dos areas a comparar utilizando la función `filter()` del paquete `dplyr`.
+
+-   Generar una segunda base de datos a partir de esta que incluya únicamente los reactivos.
+
+-   Ejecutar la función `difMH` utilizando estas dos bases de datos, seleccionando al área 2 como grupo focal. Se guarda los resultados de dicho análisis en un objeto nuevo que llamaremos `MH`
+
+-   Calcular manualmente la razón de probabilidades logarítmicas a partir del estadídstico alfa que la función difMH devuelve
+
+-   Convertir los resultados del paso anterior en una representación simbólica utilizando la función `symnum()`. Los símbolos se asignan de acuerdo con los umbrales sugeridos por Zwick, (2012).
+
+-   Crear una tabla final de resultados que incluye el nombre de cada reactivo, el valor de la razón de probabilidades logarítmicas y el símbolos correspondiente al nivel de DIF que indica el valor correspondiente
+
+```{r}
+ lecturaDIF <- lectura%>%
+  dplyr::select(area)%>%
+  bind_cols(reactivos_lectura)
+
+
+  areas <- lecturaDIF%>%
+    filter(area %in% c(1,2))
+  
+  reactivos <- areas%>%
+    select(!area)
+  
+  MH<-difMH(reactivos, areas$area, focal.name= 2)
+  
+  coef <- round(-2.35 * log(MH$alphaMH), 4)
+  
+  DIF <- as.vector(symnum(coef, c(-Inf,-1.5,-1, 1, 1.5, Inf), symbols = c("--","-","", "+", "++")))
+
+  tabladif<-paste(coef, DIF, sep = " ")%>%as.data.frame()%>%
+    set_names("Area1 Vs Area2")%>%
+        bind_cols(reactivos = names(reactivos),. )
+
+
+```
+
+Si bien este procedimiento es relativamente sencillo, hacerlo para cada uno de los paresse vuelve un proceso recursivo que puede bien ser automatizado. Para ello, en el siguiente bloque de código replicamos el código de la sección anterior y lo encerramos dentro de un bucle del tipo `for()`. Más concretamente, en el siguiente bloque se realizan los siguientes pasos:
+
+-   Se crea una lista que incluye cada una de las comparaciones como vectores individuales, de tal forma que `c(1,2)` corresponde a la comparación entre las áreas 1 y 2. Esta lista nos será de utilidad para el resto de metodologías DIF que comparan únicamente dos grupos.
+
+-   Se abre el bucle for indicando que será un bucle entre 1 y la cantidad de objetos dentro de la lista, es decir, este bucle va a ejecutar las funciones que contenga un total de 6 veces, y el objeto `i` va a tomar los valores entre 1 y 6.
+
+-   Se ejecuta el mismo código que en la sección anterior pero haciendo los reemplazos correspondientes para que funcione dentro de un bucle. En cada sección donde se definen los grupos a utilizar, en lugar de escribir de forma explícita las áreas, se hace referencia a ellas de la siguiente manera: `pairs_list[[i]][1]`. Esta línea de código llama al objeto número i (el número de iteración dentro del bucle) y al primer objeto dentro de ese vector en la lista.
+
+-   Para finalizar el bucle, creamos una tabla con todos los resultados utilizando un doble condicional `if`. Este condicional le indica al bucle que, si el objeto que nombraremos `TablaDIF_CL_MH` no existe dentro de nuestro ambiente de trabajo, lo defina como una base de datos con el nombre de nuestros reactivos en una columna y los resultados del bucle como otra columna. En cambio, si el objeto ya existe, simplemente pega los resuultados como una columna mas dentro de la base de datos. Nótese que se define primero el condicional para el caso en el que el objeto sí exista. Esto es simplemente para evitar que el primer bucle muestre resultados duplicados.
+
+-   Finalmente, para presentar los resultados, creamos una tabla exportable en format HTML con la función `kbl` del paquete `kableExtra`. Podemos incluir un título para la tabla, modificar el estilo e incluso los títulos de las columnas.
+
+```{r}
+
+
+
+pairs_list <- list(c(1,2), c(1,3), c(1,4), c(2,3), c(2,4), c(3,4))
+
+
+for(i in 1:length(pairs_list)){
+  
+  areas <- lecturaDIF%>%
+    filter(area %in% c(pairs_list[[i]][1],pairs_list[[i]][2]))
+  
+  reactivos <- areas%>%
+    select(!area)
+  
+  MH<-difMH(reactivos, areas$area, focal.name= pairs_list[[i]][2])
+  
+  coef <- round(-2.35 * log(MH$alphaMH), 4)
+  
+  DIF <- as.vector(symnum(coef, c(-Inf,-1.5,-1, 1, 1.5, Inf), symbols = c("--","-","", "+", "++")))
+
+  tabladif<-paste(coef, DIF, sep = " ")%>%as.data.frame()%>%
+    set_names(noquote(paste0("Area",pairs_list[[i]][1]," VS Area", pairs_list[[i]][2])))
+
+if(exists("TablaDIF_CL_MH") == T){TablaDIF_CL_MH <- bind_cols(TablaDIF_CL_MH, tabladif)}
+if(exists("TablaDIF_CL_MH") == F){TablaDIF_CL_MH <- bind_cols(reactivos = names(reactivos_lectura), tabladif)}
+
+print(names(TablaDIF_CL_MH))
+
+}
+
+  
+
+TablaDIF_CL_MH%>%
+kbl(caption = "Presencia de DIF Área vs Área en Examen de Lectura con Método Mantel-Haensze")%>%
+  kable_classic(full_width = F, html_font = "Cambria")%>%
+  add_header_above(c(" " = 1, "FMI y CBQS" = 1, "FMI y CS" = 1, "FMI y HA" = 1, 
+                     "CBQS y CS" = 1, "CBQS y HA" = 1, "CS y HA" = 1))
+
+```
+
+### Método de Regresión Logística
+
+Para el método de Regresión logística, se utiliza un procedimiento similar al anterior, incluyendo un bucle que llama la función difLogistic del mismo paqute `difR`. La principal diferencia con el código anterior es que, en lugar decalcular manualmente a partir del valor de Alfa de Mantel-Haenszel, en este caso tomamos directamente el valor *p* para determinar el nivel de DIF, complementando esta prueba de significancia con el valor de delta que la misma prueba arroja. Otro aspecto distinto al utilizar este método de regresión logística es que tenemos la posibilidad de buscar DIF de tipo uniform o no uniforme al especificar el parámetro `type = "udif` o `type = "nudif"`.
+
+```{r}
+
+
+
+
+for(i in 1:length(pairs_list)){
+  
+  areas <- lecturaDIF%>%
+    filter(area %in% c(pairs_list[[i]][1],pairs_list[[i]][2]))
+  
+  reactivos <- areas%>%
+    select(!area)%>%as.data.frame()
+  
+  LR<-difLogistic(reactivos, areas$area, type = "udif", focal.name= pairs_list[[i]][2])
+
+  coef <- round(LR$p.value, 4)
+  DIF <- as.vector(symnum(coef, abs(c(0,0.001,0.01,0.05,1)), 
+                          symbols = c("***","**", "*", "")))
+  delta <- round(LR$deltaR2,3)
+  tabladif<- paste(delta, DIF, sep = " ")%>%as.data.frame()%>%
+    set_names(noquote(paste0("Area",pairs_list[[i]][1]," VS Area", pairs_list[[i]][2])))
+
+if(exists("TablaDIF_CL_LRU") == T){TablaDIF_CL_LRU <- bind_cols(TablaDIF_CL_LRU, tabladif)}
+if(exists("TablaDIF_CL_LRU") == F){TablaDIF_CL_LRU <- bind_cols(reactivos = names(reactivos_lectura), tabladif)}
+
+print(names(TablaDIF_CL_LRU))
+
+}
+
+
+TablaDIF_CL_LRU%>%
+kbl(caption = "Análisis DIF con método de Regresión Logística para DIF uniforme área contra área en examen de comprensión lectora")%>%
+  kable_classic(full_width = F, html_font = "Cambria")%>%
+  add_header_above(c(" " = 1, "FMI y CBQS" = 1, "FMI y CS" = 1, "FMI y HA" = 1, 
+                     "CBQS y CS" = 1, "CBQS y HA" = 1, "CS y HA" = 1))
+
+```
+
+### Regresión logística recursiva exploratoria
+
+Además del método mostrado en la sección anterior, también es posible utilizar un método exploratorio recursivo de regresión logística gracias a la función `DIFtree()` perteneciente al paquete del mismo nombre. Para utilizar esta función, necesitamos realizar algunos pasos previos, dentro del siguiente bloque de código se ejecutan todas las siguientes acciones:
+
+-   Se genera una base de datos que únicamente contenga las covariables a utilizar, asegurándonos de que todas sean variables de tipo númerico
+
+-   Se crea una matriz de datos que incluya únicamente los reactivos a analizar, asegurándonos de no tener valores perdidos.
+
+-   Se ejecuta la función DIFtree especificando la matriz de reactivos a utilizar, la base de datos con las covariables, el tipo de análisis y si es para detectar DIF uniforme o No Uniforme. Los resultados de este análisis se asignan a nuevo objeto que en este caso nombramos `nudiftree_lectura`
+
+-   Se extraen los resultados del análisis utilizando la función `summary()`.
+
+-   Finalmente, se reportan los resultados mediante una tabla utilizando la función gt del paquete del mismo nombre.
+
+```{r}
+## Regresión logística recursiva exploratoria
+## DIFtree
+library(DIFtree)
+
+### Preparacion de los datos
+covar_lectura <- lectura%>%
+  select(area,posgrado, genero, nivel)%>%
+  bind_cols(reactivos_lectura)%>%
+  drop_na()%>%
+  select(area,posgrado, genero, nivel)%>%
+  mutate_all(as.numeric)%>%
+  as.data.frame()
+
+
+diftree_data <- lectura%>%
+  select(area,posgrado, genero, nivel)%>%
+  bind_cols(reactivos_lectura)%>%
+  drop_na()%>%
+  select(LR1:LR11)%>%
+  as.matrix()
+
+
+### Ejecución de análisis
+nudiftree_lectura<- DIFtree(Y = diftree_data, X = covar_lectura, 
+                            model = "Logistic", type = "udif")
+
+tabla_logtree <- summary(nudiftree_lectura)
+
+tabla_logtree[[2]]%>%
+  dplyr::rename(Tipo = type, Particiones = nosplits)%>%
+  apa("Tabla 9.  Análisis DIF exploratorio del examen de lectura y gramática con 
+      método recursivo de regresión logística")
+
+```
+
+## Métodos DIF paramétricos
+
+### Exploración de los datos con Mapa de Wright
+
+Dentro del marco de la TRI, una visualización útil es el llamado Mapa de Wright, que permite visualizar bajo una misma escala tanto a los reactivos como a los sustentantes. Para elaborarlo, el paquete `WrightMap` es una herramienta muy útil, aunque requiere de algunos pasos adicionales que involucran otro tipo de paquetes como el paquete `mirt` para generar el modelo TRI o algunas funciones adicionales básicas de R para la generación del gráfico. Para elaborarlo, necesitamos realizar los siguientes pasos:
+
+-   Generar el modelo de Rasch mediante la función `mirt()` prroveniente del paquete con el mismo nombre. Para generar el modelo, necesitamos proveer los siguientes parámetros dentro de la función
+
+    -   La base de datos que contiene únicamente los reactivos
+    -   La cantidad de dimensiones que incluye el modelo, en este caso, al tratarse de un modelo simple de Rasch, simplemente indicaremos que se trata de un modelo unidimensional escribiendo `model = 1`.
+    -   El tipo de modelo para los reactivos, que en este caso se trata de un modelo de Rasch
+
+-   A partir de este modelo, es posible extraer los niveles de habilidad de cada uno de los sustentantes utilizando la función `fscores()` con el nombre del modelo como el único parámetro dentro de ella. Dado que la intención de este gráfico en particular es contrastar las 4 áreas a evaluar, necesitaremos combinar esta información con nuestra base de datos que incluye a qué área perteneica cada sustentante. La función fscores devuelve los niveles de habilidad en el orden original de la base de datos, por lo que podemos simplemente combinar las columnas con la función `cbind`.
+
+-   Para crear el mapa de Wright, necesitaremos crear cuatro gráficos distintos para los sustentantes, uno para cada área. Por ello, necesitaremos crear cuatro bases de datos distintos con los niveles de habilidad, para ello simplemente podemos usar la función `filter()` del paquete `dplyr`, especificando en cada uno que queremos conservar únicamente los casos correspondientes a una sola de las áreas.
+
+-   Una vez que tenemos los niveles de habilidad de los sustentantes por área, solamente nos hace falta obtener los niveles de dificultad de los reactivos, para ello, la función `coef()` nos permite extraer los distintos parámetros de los reactivos. Para hacer el proceso más sencillo, se sugiere incluir los siguientes parámetros dentro de la función: `IRTpars=TRUE, simplify=TRUE`.
+
+-   Esta función devuelve una lista con distintos objetos. Para extraer los niveles de dificultad por reactivo solamente, se extrae el primer objeto de la lista y la segunda columna de la siguiente forma: `coef.Rasch_CL[[1]][,2]`.
+
+-   
+
+```{r}
+
+
+## Mapa de Wright con modelo Rasch
+library(ShinyItemAnalysis)
+library(WrightMap)
+library(RColorBrewer)
+
+
+modeloRasch_CL <- mirt(data=reactivos_lectura,model = 1, itemtype="Rasch", 
+                       SE=TRUE, verbose=FALSE)
+
+thetaRaschScores <-fscores(modeloRasch_CL)%>%
+  cbind(area = lectura$area)%>%
+  as_tibble()
+
+
+thetaRaschCL1 <- thetaRaschScores%>%
+  filter(area == 1)%>%
+  select(F1)
+
+thetaRaschCL2 <- thetaRaschScores%>%
+  filter(area == 2)%>%
+  select(F1)
+
+thetaRaschCL3 <- thetaRaschScores%>%
+  filter(area == 3)%>%
+  select(F1)
+
+thetaRaschCL4 <- thetaRaschScores%>%
+  filter(area == 4)%>%
+  select(F1)
+
+
+coef.Rasch_CL <- coef(modeloRasch_CL, IRTpars=TRUE, simplify=TRUE)
+
+b_RaschCL <- coef.Rasch_CL[[1]][,2]
+
+item_color_palette <- matrix(rep(c("#44BEFE","#098BD1","#0D547A","#092A3C")),
+                             10, byrow = TRUE, ncol = 4)
+
+split.screen(figs = matrix(c(    0, .10,0,1,
+                                 .10, .20,0,1,
+                                 .20, .30,0,1,
+                                 .30, .40,0,1,
+                                 .40,  1, 0,1), ncol = 4, byrow = TRUE))
+
+personHist(thetaRaschCL1,yRange = c(-1.2,1.5), dim.lab.cex = 1, 
+           dim.names = "CFMI", dim.color = "#44BEFE",
+           show.axis.logits = FALSE, axis.persons = "Sustentantes", breaks = 10)
+
+screen(2)
+personHist(thetaRaschCL2,yRange = c(-1.2,1.5), dim.lab.cex = 1, 
+           dim.names = "CBQS", dim.color = "#098BD1",
+           show.axis.logits = FALSE, axis.persons = NULL, breaks = 10)
+
+screen(3)
+personHist(thetaRaschCL3,yRange = c(-1.2,1.5), dim.lab.cex = 1, 
+           dim.names = "CS", dim.color = "#0D547A",
+           show.axis.logits = FALSE, axis.persons = NULL, breaks = 10)
+
+screen(4)
+personHist(thetaRaschCL4, yRange = c(-1.2,1.5), dim.lab.cex = 1, 
+           dim.names = "HA", dim.color = "#092A3C",
+           show.axis.logits = FALSE,axis.persons = NULL, breaks = 10)
+
+screen(5)
+itemModern(b_RaschCL, yRange = c(-1.2,1.5), thr.sym.cex = 2, thr.sym.col.bg = "#092A3C")
+mtext("Figura 3. Mapa de Wright del exámen de lectura y gramática con distribución por área", side = 3, font = 2, line = 1)
+
+close.screen(all.screens = TRUE)
+
+```
+
+### Análisis Raschtree para detección exploratoria de DIF
+
+```{r}
+
+## Figura 5 - Análisis Raschtree
+
+library(psychotree)
+lectura_dicotomicos$resp <- as.matrix(lectura_dicotomicos[, 6:16])
+
+## Eliminr variables no requeridas
+lecturaDIF1 <- lectura_dicotomicos[, -(6:16)]
+
+## Creación de modelo psychotree lectura
+raschtreeCL1 <- psychotree::raschtree(resp ~ area  + genero + nivel, data = lecturaDIF1)
+
+## Gráfica del modelo
+plot(raschtreeCL1, title = "Figura 5")
+
+```
+
+### Análisis DIF con método de diferencia de Logits con un modelo Rasch
+
+```{r}
+
+library(eRm)
+DIFRasch <- function(base, referencia, focal){
+  
+  areas <- base%>%
+    filter(area %in% c(referencia,focal))
+  
+  reactivos <- areas%>%
+    select(!area:plantel_UNAM)
+  
+  modeloR<-RM(reactivos)
+  subgroup_diffs <- Waldtest(modeloR, splitcr = areas$area)
+  subgroup_1_diffs <- subgroup_diffs$betapar1
+  subgroup_2_diffs <- subgroup_diffs$betapar2
+  coef <- round((subgroup_1_diffs*-1)-(subgroup_2_diffs*-1),3)
+  
+  DIF <- symnum(coef, c(-Inf,-1,-.5, .5, 1, Inf), symbols = c("--","-","", "+", "++"))
+  
+  tabla_dif<-cbind(coef, DIF)
+}
+
+```
+
+### Análisis DIF con método de Xi cuadrada de Lord
+
+```{r}
+
+
+## DIF X2 de Lord
+## Función personalizada para análisis DIF con X2 de Lord
+DIF_LORD <- function(base, referencia, focal){
+  
+  areas <- base%>%
+    filter(area %in% c(referencia,focal))
+  
+  reactivos <- areas%>%
+    select(!area)
+  
+  Lord<-difLord(reactivos, areas$area, focal.name= focal, model = "2PL")
+  coef <- round(Lord$p.value, 4)
+  DIF <- as.vector(symnum(coef, abs(c(0,0.001,0.01,0.05,1)), 
+                          symbols = c("***","**", "*", "")))
+  chi <- round(Lord$LordChi,3)
+  tabladif<- paste(chi, DIF, sep = " ")
+}
+
+```
+
+## Análisis DIF con áreas combinadas
+
+```{r}
+## DIF con 2 grupos. Comparación de métodos
+lectura_2grps <- lecturaDIF%>%
+  mutate(area = case_when(area %in% 1:2 ~ 1, area %in% 3:4 ~ 2))%>%
+  mutate(area = as.factor(area))%>%
+  select(area,LR1:LR11)%>%
+  drop_na()
+
+```
+
+## Análisis DIF con metodologías Robustas mediante TRI
+
+```{r}
+
+## Análisis DIF TRI robustos
+
+## Selección de modelo TRI
+
+## Generación de cada modelo
+CL_irt1<-mirt(reactivos_lectura, model = 1, itemtype = "Rasch")
+CL_irt2<-mirt(reactivos_lectura, model = 1, itemtype = "2PL")
+CL_irt3<-mirt(reactivos_lectura, model = 1, itemtype = "3PL")
+CL_mirt2<-mirt(reactivos_lectura, model = 2, itemtype = "2PL") # Modelo bidimensional
+
+
+
+
+### Generación de índices de bondad de ajuste
+
+fit_CL_irt1 <- M2(CL_irt1, na.rm = TRUE)
+fit_CL_irt2 <- M2(CL_irt2, na.rm = TRUE)
+fit_CL_irt3 <- M2(CL_irt3, na.rm = TRUE)
+
+
+nombres_modelos1 <- c("Modelo Rasch", "Modelo 2PL", "Modelo 3PL")
+
+## Tabla final
+rbind(fit_CL_irt1, fit_CL_irt2, fit_CL_irt3)%>%
+  select(M2:RMSEA, CFI)%>%
+  cbind(nombres_modelos1, .)%>%
+  gt("Tabla 3. Comparación de modelos TRI unidimensionales en examen de lectura y gramática",rowname_col = "nombres_modelos1")%>%
+  tab_stubhead(label = "Modelos")%>%
+  fmt_number(columns = c(2,4:6),
+             decimals = 3)
+
+## Análisis de Razón de Verosimilitud entre modelo unidimensional y bidimensional
+anova_irt1_vs_mirt2 <-anova(CL_irt2, CL_mirt2)
+
+## Generación de la tabla
+Modelos <- c("Modelo 1", "Modelo 2")
+anova_irt1_vs_mirt2%>%
+  select(AIC, BIC, logLik, X2, df, p)%>%
+  cbind(Modelos, .)%>%
+  gt("Tabla 4. Comparativa de Modelo unidimensional y multidimensional")%>%
+  fmt_number(columns = 2:5,
+             decimals = 2)%>% 
+  tab_footnote(footnote = "Modelo unidimensional",
+               locations = cells_body(columns = Modelos, rows = 1))%>% 
+  tab_footnote(footnote = "Modelo exploratorio de dos dimensiones",
+               locations = cells_body(columns = Modelos, rows = 2))
+
+
+## Evaluación de supuesto de independencia local con modelo elegido
+residuals(CL_mirt2, type = "LDG2")
+
+residuals(CL_mirt2, type = "Q3")%>%
+  corrplot(method = "number", type="lower", col=brewer.pal(n=11, name="RdBu"),tl.srt=90)
+
+
+## Generación de modelo de dos parámetros específicos para cada grupo usando multipleGroup del paquete mirt
+modelo2PL_CL_A <- multipleGroup(data=reactivos_lectura,model = 1, group = factor(lectura$area),
+                                itemtype="2PL", SE=TRUE)
+
+#Análisis DIF a partir del modelo de dos parámetros anterior
+dif_CL1 <-DIF(modelo2PL_CL_A, which.par = c("a1", "d"))
+dif_CL1%>%arrange(X2)
+
+## A partir del análisis anterior, se identifican reactivos anclaa y se vuelve a ejecutar el análisis fijando los parámetros en dichos reactivos
+
+modelo2PL_CL_ANCH <- multipleGroup(data=reactivos_lectura,model = 1, group = factor(lectura$area),
+                                   itemtype="2PL", SE=TRUE, invariance = c(c("LR2"), 
+                                                                           'free_means', 'free_var'))
+
+#Análisis DIF ya con los reactivos ancla
+
+dif_CL2<-DIF(modelo2PL_CL_ANCH, c("a1", "d"), items2test = c(1,3:11), maxiter = 1000)
+
+
+nombres_reactivos2 <- rownames(dif_CL2)
+## generación de la tabla final
+
+dif_CL2%>%
+  cbind(nombres_reactivos2,.)%>%
+  rename(Reactivos =nombres_reactivos2)%>%
+  gt("Análisis DIF con método de Razón de Verosimilitud en examen de lectura y gramática")%>%
+  fmt_number(columns = c(3:7,9),
+             decimals = 3)
+
+```
