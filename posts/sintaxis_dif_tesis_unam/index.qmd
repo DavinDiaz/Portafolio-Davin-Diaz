@@ -14,7 +14,22 @@ knitr::opts_chunk$set(collapse = TRUE)
 
 Para los análisis realizados dentro de este trabajo de tesis, se utilizaron una serie de paquetes dentro del lenguaje de programación de R. A continuación se presenta un listado con todos los paquetes y una breve descripción del uso que se hizo de cada uno de ellos:
 
--   library(psych) library(psy) library(mirt) library(sjPlot) library(difR) library(ltm) library(lme4) library(lordif) library(ShinyItemAnalysis) library(tidyverse) library(gt) library(kableExtra) library(corrplot) library(RColorBrewer) library(eRm) library(ggdist)
+- library(psych) 
+- library(psy) 
+- library(mirt) 
+- library(sjPlot) 
+- library(difR) 
+- library(ltm) 
+- library(lme4) 
+- library(lordif) 
+- library(ShinyItemAnalysis) 
+- library(tidyverse) 
+- library(gt) 
+- library(kableExtra) 
+- library(corrplot) 
+- library(RColorBrewer) 
+- library(eRm) 
+- library(ggdist)
 
 ## Manejo de los datos
 
